@@ -1,0 +1,16 @@
+# 客商下单技能配置示例
+# 将此文件复制为 config.yaml 并填写实际的API密钥
+
+# API认证信息
+ACCESS_KEY_ID: "NeIFPBmDEbfs2Brp"
+ACCESS_KEY_SECRET: "ec976ad7959b2245b7d3e002002e22b2"
+
+# 订单存储配置
+storage:
+  type: json
+  path: "orders.json"
+
+# 日志配置
+logging:
+  level: INFO
+  file: "skill.log"
