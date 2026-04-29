@@ -33,8 +33,8 @@ API_CONFIG = {
     "specs_info_by_code_url": "http://api.ceyadi.cn/v1/specs/info_byCode",
     # 图片上传API
     "upload_url": "http://api.ceyadi.cn/v1/upload/image",
-    "access_key_id": "XX",
-    "access_key_secret": "XX",
+    "access_key_id": "iRp0bzBi96mZuNLy",
+    "access_key_secret": "f92a1f44cf8d3d333c2fca311972ab1f",
     "cached_token": None
 }
 
@@ -532,34 +532,35 @@ def parse_text_order(text):
         # 上衣版型（以1开头，除了1SF是猎装）
         if pattern_code.startswith("1") and not pattern_code.startswith("1SF"):
             item["patternTypeCode"] = "SY"
+            # 使用特殊标记告知create_order需要合并默认属性和用户修改
             if sy_attr:
-                item["ksPatternAttr"] = sy_attr
+                item["customPatternAttr"] = sy_attr
         elif pattern_code.startswith("2K") or pattern_code.startswith("3K"):
             item["patternTypeCode"] = "SY"
             if sy_attr:
-                item["ksPatternAttr"] = sy_attr
+                item["customPatternAttr"] = sy_attr
         elif pattern_code.startswith("4"):
             item["patternTypeCode"] = "DY"
             if dy_attr:
-                item["ksPatternAttr"] = dy_attr
+                item["customPatternAttr"] = dy_attr
         elif pattern_code.startswith("5"):
             item["patternTypeCode"] = "MJ"
             if sy_attr:
-                item["ksPatternAttr"] = sy_attr
+                item["customPatternAttr"] = sy_attr
         elif pattern_code.startswith("6") or pattern_code.startswith("7"):
             item["patternTypeCode"] = "XK"
             if xk_attr:
-                item["ksPatternAttr"] = xk_attr
+                item["customPatternAttr"] = xk_attr
             if xk_net_size:
                 item["netSize"] = xk_net_size
         elif pattern_code.startswith("1SF") or pattern_code.startswith("8") or pattern_code.startswith("9"):
             item["patternTypeCode"] = "LZ"
             if sy_attr:
-                item["ksPatternAttr"] = sy_attr
+                item["customPatternAttr"] = sy_attr
         elif pattern_code.startswith("0"):
             item["patternTypeCode"] = "MJ"
             if sy_attr:
-                item["ksPatternAttr"] = sy_attr
+                item["customPatternAttr"] = sy_attr
         
         result["items"].append(item)
     
@@ -754,13 +755,19 @@ def build_order_item(params, pattern_info):
                 order_items_data["ksMassingCodes"] = specs_massing_codes
             # massingCodes 可以不设置，让系统自动处理
     
-    # 添加版型属性 - 只使用版型实际有的定制选项，使用编码
-    if "ksPatternAttr" in params and params["ksPatternAttr"]:
-        order_items_data["ksPatternAttr"] = params["ksPatternAttr"]
-    else:
-        default_attr = pattern_info.get("patternAttr", {})
-        if default_attr:
-            order_items_data["ksPatternAttr"] = default_attr
+    # 添加版型属性 - 合并默认属性和用户修改的选项
+    custom_attr = params.get("customPatternAttr", {})
+    default_attr = pattern_info.get("patternAttr", {})
+    
+    # 合并：默认属性作为基础，用户修改的选项覆盖默认值
+    merged_attr = {}
+    if default_attr:
+        merged_attr.update(default_attr)
+    if custom_attr:
+        merged_attr.update(custom_attr)
+    
+    if merged_attr:
+        order_items_data["ksPatternAttr"] = merged_attr
     
     # 添加版型结构 - 只使用版型实际有的结构
     if "ksPatternStructure" in params and params["ksPatternStructure"]:
