@@ -1,11 +1,11 @@
 name: customer-order
-version: 1.0.0
+version: 1.1.0
 author: OpenClaw User
 license: MIT
 runtime: python
-entry: src/index.py
+entry: index.py
 min_openclaw_version: "2026.1.0"
-description: 客商订单管理技能，支持创建订单、查询订单状态、修改订单信息等功能
+description: 客商订单管理技能，支持创建订单、查询订单状态、修改订单信息、支持自然语言下单等功能
 categories:
   - business
   - order
@@ -65,6 +65,9 @@ input:
     manualOrderhImgurls:
       type: string
       description: 手工单图片（必填）
+    isGroupOrder:
+      type: boolean
+      description: 是否团单（默认false）
     
     # 订单明细必填字段
     patternTypeCode:
@@ -149,6 +152,9 @@ input:
       type: object
       description: 客商_版型属性
       properties:
+        syJag:
+          type: string
+          description: 加放量
         syYdj:
           type: string
           description: 衣袋件
@@ -191,6 +197,45 @@ input:
         syHalfMileLiningStyle:
           type: string
           description: 半里款式
+        syJacketButtonholeColor:
+          type: string
+          description: 扣眼颜色
+        syHalfLining:
+          type: string
+          description: 半里
+        xkYks:
+          type: string
+          description: 腰头松紧
+        xkSlide:
+          type: string
+          description: 滑扣
+        xkJkjzd:
+          type: string
+          description: 裤脚加固
+        xkHemOpening:
+          type: string
+          description: 脚口
+        xkPantsPocket:
+          type: string
+          description: 裤口袋
+        xkStrapBuckle:
+          type: string
+          description: 松紧带
+        xkPantFrontFly:
+          type: string
+          description: 门襟
+        xkPantBackPocket:
+          type: string
+          description: 后袋
+        xkPantsWaistStyle:
+          type: string
+          description: 裤腰款式
+        xkTrouserFrontPockets:
+          type: string
+          description: 前插袋
+        xkFootOpeningReversed:
+          type: string
+          description: 脚口反撬值
     
     # 版型结构
     ksPatternStructure:
