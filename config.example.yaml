@@ -2,8 +2,8 @@
 # 将此文件复制为 config.yaml 并填写实际的API密钥
 
 # API认证信息
-ACCESS_KEY_ID: "XX"
-ACCESS_KEY_SECRET: "XX"
+access_key_id: "xx"
+access_key_secret: "xx"
 
 # 订单存储配置
 storage:
