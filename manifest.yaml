@@ -1,11 +1,11 @@
 name: customer-order
-version: 1.1.0
+version: 1.2.0
 author: OpenClaw User
 license: MIT
 runtime: python
 entry: index.py
 min_openclaw_version: "2026.1.0"
-description: 客商订单管理技能，支持创建订单、查询订单状态、修改订单信息、支持自然语言下单等功能
+description: 客商订单管理技能，支持创建订单、查询订单状态、修改订单信息、支持自然语言下单，新增多订单组合并功能
 categories:
   - business
   - order
