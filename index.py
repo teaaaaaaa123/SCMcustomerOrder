@@ -1280,21 +1280,21 @@ def parse_text_order(text):
         lining_match = re.search(r'里布[是为：:]([\w\-\./]+)', group_text)
         lining = lining_match.group(1).strip() if lining_match else ""
         
-        # 提取纽扣
-        button_match = re.search(r'纽扣[是为：:]([\u4e00-\u9fa5]+)', group_text)
+        # 提取纽扣（支持字母、数字和中文组合）
+        button_match = re.search(r'纽扣[是为：:]([\w\-]+[\u4e00-\u9fa5]*)', group_text)
         button = button_match.group(1).strip() if button_match else ""
         
-        # 提取面料成分
-        composition_match = re.search(r'面料成分[是为：:]([\w\-\./%]+)', group_text)
+        # 提取面料成分（支持包含空格的内容）
+        composition_match = re.search(r'面料成分[是为：:]([\w\-\./%\s]+?)(?=，|。|纽扣|面料标|里布|$)', group_text)
         composition = composition_match.group(1).strip() if composition_match else ""
         
         # 提取门襟贡针
         placket_needle_match = re.search(r'门襟贡针[是为：:]([\u4e00-\u9fa5]+)', group_text)
         placket_needle = placket_needle_match.group(1).strip() if placket_needle_match else ""
         
-        # 提取当前订单组的版型编码和尺码
-        pattern_matches = re.findall(r'([A-Z0-9]+)的(\d+码)', group_text)
-        pattern_matches += re.findall(r'([A-Z0-9]+)\s+(\d+码)', group_text)
+        # 提取当前订单组的版型编码和尺码（支持带R/C后缀的尺码如48R码）
+        pattern_matches = re.findall(r'([A-Z0-9]+)的(\d+[RCrc]?码)', group_text)
+        pattern_matches += re.findall(r'([A-Z0-9]+)\s+(\d+[RCrc]?码)', group_text)
         
         # 提取落差
         drop = ""
@@ -1396,11 +1396,19 @@ def parse_text_order(text):
         
         # 构建订单明细
         for pattern_code, size in pattern_matches:
+            # 分离尺码和落差（如48R码 -> 尺码48，落差R）
+            size_value = size.replace("码", "")
+            drop_value = drop
+            # 如果尺码末尾是R或C，分离出来作为落差
+            if size_value and size_value[-1] in ('R', 'C', 'r', 'c'):
+                drop_value = size_value[-1].upper()
+                size_value = size_value[:-1]
+            
             item = {
                 "patternCode": pattern_code,
                 "fabric": fabric,
-                "size": size.replace("码", ""),
-                "drop": drop,  # 使用解析到的落差值，为空时系统会从规格单获取默认值
+                "size": size_value,
+                "drop": drop_value,  # 使用解析到的落差值，为空时系统会从规格单获取默认值
                 "itemKsOrderNo": group_order_no,  # 使用当前订单组的团单客户单号
                 "itemKhName": result.get("khName", ""),  # 添加团单客户名称到明细
                 "fabricSupply": fabric_supply,  # 面料供应
