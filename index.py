@@ -1373,7 +1373,8 @@ def parse_text_order(text):
                 "fabric": fabric,
                 "size": size.replace("码", ""),
                 "drop": drop,  # 使用解析到的落差值，为空时系统会从规格单获取默认值
-                "itemKsOrderNo": group_order_no  # 使用当前订单组的团单客户单号
+                "itemKsOrderNo": group_order_no,  # 使用当前订单组的团单客户单号
+                "itemKhName": result.get("khName", "")  # 添加团单客户名称到明细
             }
             
             # 添加贡针（如果有）
@@ -1740,6 +1741,9 @@ def build_order_item(params, pattern_info):
     
     # 添加团单客商单号
     order_items_data["itemKsOrderNo"] = params.get("itemKsOrderNo", "")
+    
+    # 添加团单客户名称到明细
+    order_items_data["itemKhName"] = params.get("itemKhName", "")
     
     return order_items_data
 
