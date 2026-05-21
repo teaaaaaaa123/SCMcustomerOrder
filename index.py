@@ -1264,6 +1264,34 @@ def parse_text_order(text):
             fabric_match = re.search(r'面料[是为：:]([\w\-\./]+)', group_text)
         fabric = fabric_match.group(1).strip() if fabric_match else ""
         
+        # 提取面料供应
+        fabric_supply_match = re.search(r'面料供应[是为：:]([\u4e00-\u9fa5]+)', group_text)
+        fabric_supply = fabric_supply_match.group(1).strip() if fabric_supply_match else "面料客供"
+        
+        # 提取面料标
+        fabric_mark_match = re.search(r'面料标[是为：:]([\w\-\./]+)', group_text)
+        fabric_mark = fabric_mark_match.group(1).strip() if fabric_mark_match else ""
+        
+        # 提取面料产地
+        fabric_origin_match = re.search(r'面料产地[是为：:]([\u4e00-\u9fa5]+)', group_text)
+        fabric_origin = fabric_origin_match.group(1).strip() if fabric_origin_match else ""
+        
+        # 提取里布
+        lining_match = re.search(r'里布[是为：:]([\w\-\./]+)', group_text)
+        lining = lining_match.group(1).strip() if lining_match else ""
+        
+        # 提取纽扣
+        button_match = re.search(r'纽扣[是为：:]([\u4e00-\u9fa5]+)', group_text)
+        button = button_match.group(1).strip() if button_match else ""
+        
+        # 提取面料成分
+        composition_match = re.search(r'面料成分[是为：:]([\w\-\./%]+)', group_text)
+        composition = composition_match.group(1).strip() if composition_match else ""
+        
+        # 提取门襟贡针
+        placket_needle_match = re.search(r'门襟贡针[是为：:]([\u4e00-\u9fa5]+)', group_text)
+        placket_needle = placket_needle_match.group(1).strip() if placket_needle_match else ""
+        
         # 提取当前订单组的版型编码和尺码
         pattern_matches = re.findall(r'([A-Z0-9]+)的(\d+码)', group_text)
         pattern_matches += re.findall(r'([A-Z0-9]+)\s+(\d+码)', group_text)
@@ -1374,7 +1402,13 @@ def parse_text_order(text):
                 "size": size.replace("码", ""),
                 "drop": drop,  # 使用解析到的落差值，为空时系统会从规格单获取默认值
                 "itemKsOrderNo": group_order_no,  # 使用当前订单组的团单客户单号
-                "itemKhName": result.get("khName", "")  # 添加团单客户名称到明细
+                "itemKhName": result.get("khName", ""),  # 添加团单客户名称到明细
+                "fabricSupply": fabric_supply,  # 面料供应
+                "fabricMark": fabric_mark,      # 面料标
+                "fabricOrigin": fabric_origin,  # 面料产地
+                "lining": lining,              # 里布
+                "button": button,              # 纽扣
+                "composition": composition     # 面料成分
             }
             
             # 添加贡针（如果有）
