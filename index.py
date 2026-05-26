@@ -33,8 +33,8 @@ API_CONFIG = {
     "specs_info_by_code_url": "http://api.ceyadi.cn/v1/specs/info_byCode",
     # 图片上传API
     "upload_url": "http://api.ceyadi.cn/v1/upload/image",
-    "access_key_id": "Er2Utq8yHCOIt4b2",
-    "access_key_secret": "7d3d4047913cc6465d9ad36ac807cac9",
+    "access_key_id": "xx",
+    "access_key_secret": "xx",
     "cached_token": None
 }
 
