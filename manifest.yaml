@@ -5,7 +5,7 @@ license: MIT
 runtime: python
 entry: index.py
 min_openclaw_version: "2026.1.0"
-description: 客商订单管理技能，支持创建订单、查询订单状态、修改订单信息、支持自然语言下单，新增多订单组合并功能
+description: 客商订单管理技能，支持创建订单、查询订单状态、修改订单信息、支持自然语言下单（中文和英文），新增多订单组合并功能
 categories:
   - business
   - order
@@ -30,6 +30,24 @@ input:
     order_id:
       type: string
       description: 订单ID（查询/修改/取消时必填）
+    
+    # 自然语言下单（推荐）- 支持中文和英文
+    text:
+      type: string
+      description: 自然语言订单描述（推荐），支持中文或英文格式
+      examples:
+        - "客户姓名是张三，1RZ016的48码，面料货号是A096.457/19"
+        - "ORDER #GLM32397 Customer's name: Tommaso Bortolotti BASE SIZE 48R"
+    
+    # JSON文件路径
+    json_file:
+      type: string
+      description: JSON订单文件路径
+    
+    # JSON字符串
+    json:
+      type: string
+      description: JSON订单字符串
     
     # 订单新增必填字段
     ksOrderNo:
