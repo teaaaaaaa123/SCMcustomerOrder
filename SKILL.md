@@ -36,6 +36,7 @@ requires:
 - ✅ 完整支持所有量体尺寸和定制选项
 - ✅ **完整定制选项映射表（776+选项）**
 - ✅ **支持定制选项简写（B款 → B款 两明袋）**
+- ✅ **支持英文版订单解析（PASSPORT测量数据）**
 
 ## 快速开始
 
@@ -112,6 +113,25 @@ python index.py --text "客户姓名是26FW公司样衣，是否团单点是，�
 ```
 
 > **注意**：多订单组之间使用逗号加空格分隔（如 "，  FW25049,"），系统会自动将多个订单组合并为一个订单，但每个订单组保留各自的面料和定制选项。
+
+**英文版订单示例：**
+
+```bash
+python index.py --text "ORDER #GLM32397 Customer's name: Tommaso Bortolotti BASE SIZE 38R (US) / 48 (EU) SHOULDERS 45.5 CM CHEST 106 CM UPPER WAIST 97 CM HIP 101 CM BACK LENGTH 73 CM SLEEVE LENGTH RIGHT 60 CM SLEEVE LENGTH LEFT 60 CM BICEPS 39.5 SLEEVE OPENING 29.5 FRONT LENGTH - 1.0 cm: shorter JACKET PATTERN 1GL928 TROUSERS PATTERN 6GL949 ARTICLE NUMBER 280174 COMPOSITION 100% WOOL JACKET LINING FULL LINING TROUSERS LINING HALF KNEE JACKET BUTTON MH1"
+```
+
+> **支持的英文版字段：**
+> - ORDER #xxx → 客商单号（ksOrderNo）
+> - Customer's name → 客户姓名（khName）
+> - BASE SIZE → 尺码（如 48R）
+> - SHOULDERS/CHEST/UPPER WAIST/HIP → 成衣尺寸
+> - BACK LENGTH/SLEEVE LENGTH RIGHT/LEFT → 成衣尺寸
+> - BICEPS/SLEEVE OPENING/FRONT LENGTH → 成衣尺寸
+> - JACKET PATTERN/TROUSERS PATTERN → 版型编码
+> - ARTICLE NUMBER → 面料编号
+> - COMPOSITION → 面料成分
+> - JACKET LINING/TROUSERS LINING → 里布
+> - JACKET BUTTON/TROUSER BUTTON → 纽扣
 
 ## JSON 字段详细说明
 
