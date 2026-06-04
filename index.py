@@ -1151,7 +1151,13 @@ def parse_text_order(text):
     }
     
     # 提取客户姓名（支持中文、英文、数字）
-    name_match = re.search(r'客户姓名[是为：:]([\u4e00-\u9fa5A-Za-z0-9]+)', text)
+    name_match = re.search(r'客户姓名[是为：:]([\u4e00-\u9fa5A-Za-z0-9\s]+)', text)
+    if not name_match:
+        # 尝试英文格式 "Customer's name:"（单行格式）
+        name_match = re.search(r"Customer's name:\s*([A-Za-z ]+?)\s+BASE SIZE", text)
+    if not name_match:
+        # 尝试英文格式 "Customer's name:"（支持跨行，只匹配姓名行）
+        name_match = re.search(r"Customer['\s]+name\s*[：:]\s*\n\s*([A-Za-z ]+)\s*\n", text)
     if name_match:
         result["khName"] = name_match.group(1).strip()
     
@@ -1241,27 +1247,38 @@ def parse_text_order(text):
         if not group_text.strip():
             continue
         
-        # 提取当前订单组的团单客户单号
+        # 提取当前订单组的团单客户单号（支持中文和英文格式）
         group_order_no_match = re.search(r'团单客户单号[是为：:]([\w\-]+)', group_text)
         if group_order_no_match:
             group_order_no = group_order_no_match.group(1).strip()
         else:
-            # 如果没有"团单客户单号是"前缀，尝试从开头直接提取订单号（格式如 "，  FW25049,1RZ011"）
-            order_no_match = re.match(r'^\s*[，,]\s*([A-Z0-9]+),', group_text.strip())
+            # 尝试英文格式 "ORDER #xxx"（支持跨行）
+            order_no_match = re.search(r'ORDER\s*[#:]\s*([A-Z0-9]+)', group_text)
             if order_no_match:
                 group_order_no = order_no_match.group(1).strip()
             else:
-                # 再尝试直接匹配开头的订单号（不带逗号前缀）
-                order_no_match = re.match(r'^\s*([A-Z0-9]+),', group_text.strip())
+                # 如果没有"团单客户单号是"前缀，尝试从开头直接提取订单号（格式如 "，  FW25049,1RZ011"）
+                order_no_match = re.match(r'^\s*[，,]\s*([A-Z0-9]+),', group_text.strip())
                 if order_no_match:
                     group_order_no = order_no_match.group(1).strip()
                 else:
-                    group_order_no = ""
+                    # 再尝试直接匹配开头的订单号（不带逗号前缀）
+                    order_no_match = re.match(r'^\s*([A-Z0-9]+),', group_text.strip())
+                    if order_no_match:
+                        group_order_no = order_no_match.group(1).strip()
+                    else:
+                        group_order_no = ""
         
-        # 提取当前订单组的面料货号
+        # 提取当前订单组的面料货号（支持中文和英文格式）
         fabric_match = re.search(r'面料货号[是为：:]([\w\-\./]+)', group_text)
         if not fabric_match:
             fabric_match = re.search(r'面料[是为：:]([\w\-\./]+)', group_text)
+        if not fabric_match:
+            # 尝试英文格式 "ARTICLE NUMBER"（支持跨行）
+            fabric_match = re.search(r'ARTICLE NUMBER[\s:\n]+([\w\-\./]+)', group_text)
+        if not fabric_match:
+            # 尝试英文格式 "ARTICLE NO"（支持跨行）
+            fabric_match = re.search(r'ARTICLE NO[\s:\n]+([\w\-\./]+)', group_text)
         fabric = fabric_match.group(1).strip() if fabric_match else ""
         
         # 提取面料供应
@@ -1276,33 +1293,133 @@ def parse_text_order(text):
         fabric_origin_match = re.search(r'面料产地[是为：:]([\u4e00-\u9fa5]+)', group_text)
         fabric_origin = fabric_origin_match.group(1).strip() if fabric_origin_match else ""
         
-        # 提取里布
-        lining_match = re.search(r'里布[是为：:]([\w\-\./]+)', group_text)
-        lining = lining_match.group(1).strip() if lining_match else ""
+        # 提取里布（支持中英文格式）
+        lining = ""
+        jacket_lining = ""
+        trouser_lining = ""
         
-        # 提取纽扣（支持字母、数字和中文组合）
+        lining_match = re.search(r'里布[是为：:]([\w\-\./]+)', group_text)
+        if lining_match:
+            lining = lining_match.group(1).strip()
+            jacket_lining = lining
+            trouser_lining = lining
+        else:
+            # 尝试英文格式 - 分别提取上衣和西裤的里布
+            jacket_lining_match = re.search(r'JACKET LINING[\s:\n]+([\w\-\s]+?)(?=\s+TROUSERS LINING|\s+TROUSERS|\s+BUTTON|\s+ORDER|\s+$)', group_text)
+            trouser_lining_match = re.search(r'TROUSERS LINING[\s:\n]+([\w\-\s]+?)(?=\s+JACKET|\s+BUTTON|\s+ORDER|\s+$)', group_text)
+            
+            if jacket_lining_match:
+                jacket_lining = jacket_lining_match.group(1).strip()
+            if trouser_lining_match:
+                trouser_lining = trouser_lining_match.group(1).strip()
+        
+        # 如果没有分别提取到，则使用通用值
+        if not jacket_lining and not trouser_lining:
+            lining_match = re.search(r'LINING[\s:\n]+([\w\-\s]+?)(?=\s+[A-Z]+\s+[A-Z]+|\s*$)', group_text)
+            lining = lining_match.group(1).strip() if lining_match else ""
+            jacket_lining = lining
+            trouser_lining = lining
+        
+        # 提取纽扣（支持字母、数字和中文组合，支持中英文格式）
         button_match = re.search(r'纽扣[是为：:]([\w\-]+[\u4e00-\u9fa5]*)', group_text)
+        if not button_match:
+            # 尝试英文格式 "JACKET BUTTON"
+            button_match = re.search(r'JACKET BUTTON[\s:\n]+([\w\-]+)', group_text)
+        if not button_match:
+            # 尝试英文格式 "TROUSER BUTTON"
+            button_match = re.search(r'TROUSER BUTTON[\s:\n]+([\w\-]+)', group_text)
+        if not button_match:
+            # 尝试通用英文格式 "BUTTON"
+            button_match = re.search(r'BUTTON[\s:\n]+([\w\-]+)', group_text)
         button = button_match.group(1).strip() if button_match else ""
         
-        # 提取面料成分（支持包含空格的内容）
+        # 提取面料成分（支持包含空格的内容，支持中英文格式）
         composition_match = re.search(r'面料成分[是为：:]([\w\-\./%\s]+?)(?=，|。|纽扣|面料标|里布|$)', group_text)
+        if not composition_match:
+            # 尝试英文格式 "COMPOSITION"（支持跨行）
+            composition_match = re.search(r'COMPOSITION[\s:\n]+([\w\-\./%\s]+?)(?=\s+JACKET LINING|\s+TROUSERS LINING|\s+JACKET BUTTON|\s+$)', group_text)
         composition = composition_match.group(1).strip() if composition_match else ""
         
         # 提取门襟贡针
         placket_needle_match = re.search(r'门襟贡针[是为：:]([\u4e00-\u9fa5]+)', group_text)
         placket_needle = placket_needle_match.group(1).strip() if placket_needle_match else ""
         
+        # 提取英文成衣尺寸测量数据（PASSPORT测量）
+        # 映射关系：英文字段 -> 系统字段
+        english_size_mapping = {
+            r'SHOULDERS[\s:\n]+([\d.]+)': 'shoulderWidth',
+            r'CHEST[\s:\n]+([\d.]+)': 'fullBust',
+            r'UPPER WAIST[\s:\n]+([\d.]+)': 'fullWaistWidth',
+            r'HIP[\s:\n]+([\d.]+)': 'fullHipWidth',
+            r'BACK LENGTH[\s:\n]+([\d.]+)': 'shortRegularTall',
+            r'SLEEVE LENGTH RIGHT[\s:\n]+([\d.]+)': 'sleeveLength',
+            r'SLEEVE LENGTH LEFT[\s:\n]+([\d.]+)': 'sleeveLengthLeft',
+            r'BICEPS[\s:\n]+([\d.]+)': 'sleeveWidth',
+            r'SLEEVE OPENING[\s:\n]+([\d.]+)': 'wrisband',
+            r'FRONT LENGTH[\s:\n]+([\d.-]+)': 'frontLength'
+        }
+        
+        net_size = {}
+        for pattern, field_name in english_size_mapping.items():
+            match = re.search(pattern, group_text)
+            if match:
+                try:
+                    value = float(match.group(1))
+                    net_size[field_name] = value
+                except ValueError:
+                    pass
+        
+        # 处理前长的特殊格式 "FRONT LENGTH - 1.0 cm: shorter"
+        front_length_match = re.search(r'FRONT LENGTH\s*[-–]\s*([\d.]+)', group_text)
+        if front_length_match:
+            try:
+                value = float(front_length_match.group(1))
+                # 如果是负数，表示缩短
+                net_size['frontLengthAdjust'] = -value
+            except ValueError:
+                pass
+        
         # 提取当前订单组的版型编码和尺码（支持带R/C后缀的尺码如48R码）
         pattern_matches = re.findall(r'([A-Z0-9]+)的(\d+[RCrc]?码)', group_text)
         pattern_matches += re.findall(r'([A-Z0-9]+)\s+(\d+[RCrc]?码)', group_text)
         
-        # 提取落差
+        # 初始化落差变量
         drop = ""
-        drop_match = re.search(r'落差[是为：:]*([RCrc])', group_text)
-        if not drop_match:
-            drop_match = re.search(r'落差[是为：:]*([Rr]常规|[Cc]舒适)', group_text)
-        if not drop_match:
-            drop_match = re.search(r'([Rr]常规|[Cc]舒适)', group_text)
+        
+        # 如果没有找到中文格式的版型编码，尝试英文格式（支持分行格式）
+        if not pattern_matches:
+            # 尝试英文格式 "JACKET PATTERN xxx"（支持跨行匹配）
+            jacket_pattern_match = re.search(r'JACKET PATTERN[\s:\n]+([A-Z0-9]+)', group_text, re.MULTILINE)
+            trouser_pattern_match = re.search(r'TROUSERS PATTERN[\s:\n]+([A-Z0-9]+)', group_text, re.MULTILINE)
+            
+            # 解析尺码格式 "BASE SIZE 38R (US) / 48 (EU)"（支持跨行匹配）
+            size_match = re.search(r'BASE SIZE[\s:\n]+\d+[RCrc]?.*?/ (\d+[RCrc]?)', group_text, re.DOTALL)
+            if not size_match:
+                size_match = re.search(r'BASE SIZE[\s:\n]+(\d+[RCrc]?)', group_text, re.MULTILINE)
+            
+            if size_match:
+                size_str = size_match.group(1).strip()
+                # 分离尺码数字和落差
+                size_num = re.search(r'(\d+)', size_str)
+                drop_char = re.search(r'([RCrc])', size_str)
+                final_size = size_num.group(1) if size_num else ''
+                final_drop = drop_char.group(1).upper() if drop_char else 'R'  # 默认常规
+                
+                if jacket_pattern_match:
+                    pattern_matches.append((jacket_pattern_match.group(1), final_size + '码'))
+                    if final_drop:
+                        drop = final_drop
+                if trouser_pattern_match:
+                    pattern_matches.append((trouser_pattern_match.group(1), final_size + '码'))
+        
+        # 提取落差（如果还没有从尺码中提取）
+        drop_match = None
+        if not drop:
+            drop_match = re.search(r'落差[是为：:]*([RCrc])', group_text)
+            if not drop_match:
+                drop_match = re.search(r'落差[是为：:]*([Rr]常规|[Cc]舒适)', group_text)
+            if not drop_match:
+                drop_match = re.search(r'([Rr]常规|[Cc]舒适)', group_text)
         
         if drop_match:
             match_str = drop_match.group(1).strip().upper()
@@ -1404,6 +1521,13 @@ def parse_text_order(text):
                 drop_value = size_value[-1].upper()
                 size_value = size_value[:-1]
             
+            # 根据版型类型选择正确的里布值
+            item_lining = lining
+            if pattern_code.startswith("1") and jacket_lining:
+                item_lining = jacket_lining
+            elif pattern_code.startswith("6") and trouser_lining:
+                item_lining = trouser_lining
+            
             item = {
                 "patternCode": pattern_code,
                 "fabric": fabric,
@@ -1414,10 +1538,14 @@ def parse_text_order(text):
                 "fabricSupply": fabric_supply,  # 面料供应
                 "fabricMark": fabric_mark,      # 面料标
                 "fabricOrigin": fabric_origin,  # 面料产地
-                "lining": lining,              # 里布
+                "lining": item_lining,          # 里布
                 "button": button,              # 纽扣
                 "composition": composition     # 面料成分
             }
+            
+            # 添加英文成衣尺寸测量数据（PASSPORT测量数据，放到ksMadeSize字段）
+            if net_size:
+                item["ksMadeSize"] = net_size
             
             # 添加贡针（如果有）
             if placket_needle:
@@ -1473,10 +1601,19 @@ def parse_text_order(text):
     if "团单" in text or "团购" in text or "团体" in text:
         result["isGroupOrder"] = True
     
-    # 提取团单客户单号
+    # 提取团单客户单号（支持中文和英文格式）
     group_order_no_match = re.search(r'团单客户单号[是为：:]([\w\-]+)', text)
     if group_order_no_match:
-        result["itemKsOrderNo"] = group_order_no_match.group(1).strip()
+        order_no = group_order_no_match.group(1).strip()
+        result["ksOrderNo"] = order_no           # 订单级别客商单号
+        result["itemKsOrderNo"] = order_no       # 明细级别客商单号
+    else:
+        # 尝试英文格式 "ORDER #xxx"
+        order_no_match = re.search(r'ORDER\s*[#:]\s*([A-Z0-9]+)', text)
+        if order_no_match:
+            order_no = order_no_match.group(1).strip()
+            result["ksOrderNo"] = order_no       # 订单级别客商单号
+            result["itemKsOrderNo"] = order_no   # 明细级别客商单号
     
     return result
 
@@ -1722,9 +1859,9 @@ def build_order_item(params, pattern_info):
         if default_structure:
             order_items_data["ksPatternStructure"] = default_structure
     
-    # 添加净尺寸 - 客户修改的尺寸放到这里
+    # 添加成衣尺寸 - 客户提供的PASSPORT测量数据放到这里
     if "ksMadeSize" in params and params["ksMadeSize"]:
-        order_items_data["netSize"] = params["ksMadeSize"]
+        order_items_data["ksMadeSize"] = params["ksMadeSize"]
     
     # 添加套码尺寸 - 从规格单的 sizeTable 获取真实数据
     if "standardSize" in params and params["standardSize"]:
