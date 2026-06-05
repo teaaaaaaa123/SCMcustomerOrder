@@ -1156,9 +1156,25 @@ def parse_text_order(text):
         # 尝试英文格式 "Customer's name:"（单行格式）
         name_match = re.search(r"Customer's name:\s*([A-Za-z ]+?)\s+BASE SIZE", text)
     if not name_match:
-        # 尝试英文格式 "Customer's name:"（支持跨行，只匹配姓名行）
-        name_match = re.search(r"Customer['\s]+name\s*[：:]\s*\n\s*([A-Za-z ]+)\s*\n", text)
-    if name_match:
+        # 尝试通用英文格式（带撇号或不带，支持跨行）
+        name_match = re.search(r"Customer['’]?\s*name\s*[:：]\s*\n\s*([A-Za-z ]+?)\s*\n", text)
+    if not name_match:
+        # 尝试简单匹配（逐行查找）
+        lines = text.split('\n')
+        name_found = False
+        for i, line in enumerate(lines):
+            if "name:" in line.lower() and "customer" in line.lower():
+                if i + 1 < len(lines):
+                    name_line = lines[i + 1].strip()
+                    if name_line:
+                        result["khName"] = name_line
+                        name_found = True
+                        break
+        if not name_found:
+            # 尝试匹配带撇号的情况
+            import re
+            name_match = re.search(r"Customer.*?name.*?\n\s*(.*?)\n", text, re.DOTALL)
+    if name_match and not result.get("khName"):
         result["khName"] = name_match.group(1).strip()
     
     # 提取图片路径（支持本地文件路径或URL）
@@ -1173,12 +1189,19 @@ def parse_text_order(text):
     if "团单" in text or "团购" in text or "团体" in text:
         result["isGroupOrder"] = True
     
+    # 判断是否是英文订单
+    is_english_order = "ORDER #" in text or "Customer's name" in text or "Customer’s name" in text
+    
     # 尝试按空行分割多个订单组
-    # 匹配两个或多个换行符（可能包含空格）
-    order_groups = re.split(r'\n\s*\n', text.strip())
+    # 对于英文订单，不要按空行分割 - 把整个文本作为一个订单组
+    if is_english_order:
+        order_groups = [text.strip()]
+    else:
+        # 匹配两个或多个换行符（可能包含空格）
+        order_groups = re.split(r'\n\s*\n', text.strip())
     
     # 如果没有明显的分组分隔，检查是否有多个订单组
-    if len(order_groups) == 1:
+    if len(order_groups) == 1 and not is_english_order:
         # 首先检查是否有换行符后跟订单号格式（如 "\n FW25049,"）
         # 或者逗号后跟多个空格加订单号格式（如 "，  FW25049,"）
         # 这些格式都表示新的订单组开始
@@ -1305,8 +1328,8 @@ def parse_text_order(text):
             trouser_lining = lining
         else:
             # 尝试英文格式 - 分别提取上衣和西裤的里布
-            jacket_lining_match = re.search(r'JACKET LINING[\s:\n]+([\w\-\s]+?)(?=\s+TROUSERS LINING|\s+TROUSERS|\s+BUTTON|\s+ORDER|\s+$)', group_text)
-            trouser_lining_match = re.search(r'TROUSERS LINING[\s:\n]+([\w\-\s]+?)(?=\s+JACKET|\s+BUTTON|\s+ORDER|\s+$)', group_text)
+            jacket_lining_match = re.search(r'JACKET LINING[\s:\n]+([^\n]+)', group_text)
+            trouser_lining_match = re.search(r'TROUSERS LINING[\s:\n]+([^\n]+)', group_text)
             
             if jacket_lining_match:
                 jacket_lining = jacket_lining_match.group(1).strip()
@@ -1315,7 +1338,7 @@ def parse_text_order(text):
         
         # 如果没有分别提取到，则使用通用值
         if not jacket_lining and not trouser_lining:
-            lining_match = re.search(r'LINING[\s:\n]+([\w\-\s]+?)(?=\s+[A-Z]+\s+[A-Z]+|\s*$)', group_text)
+            lining_match = re.search(r'LINING[\s:\n]+([^\n]+)', group_text)
             lining = lining_match.group(1).strip() if lining_match else ""
             jacket_lining = lining
             trouser_lining = lining
@@ -1329,15 +1352,21 @@ def parse_text_order(text):
             # 尝试英文格式 "TROUSER BUTTON"
             button_match = re.search(r'TROUSER BUTTON[\s:\n]+([\w\-]+)', group_text)
         if not button_match:
-            # 尝试通用英文格式 "BUTTON"
-            button_match = re.search(r'BUTTON[\s:\n]+([\w\-]+)', group_text)
+            # 尝试英文格式 "BUTTONS"（支持多行文本，只取一行，用前瞻限制）
+            button_match = re.search(r'BUTTONS[\s:\n]+([^\n]+?)(?=\s*[A-Z]+\s*$)', group_text)
+        if not button_match:
+            # 尝试英文格式 "BUTTONS"（简化版本，只取一行）
+            button_match = re.search(r'BUTTONS[\s:\n]+([^\n]+)', group_text)
+        if not button_match:
+            # 尝试通用英文格式 "BUTTON"（但要排除"BUTTON"在其他词里的情况）
+            button_match = re.search(r'(?<![A-Z])BUTTON[\s:\n]+([\w\-]+)', group_text)
         button = button_match.group(1).strip() if button_match else ""
         
         # 提取面料成分（支持包含空格的内容，支持中英文格式）
         composition_match = re.search(r'面料成分[是为：:]([\w\-\./%\s]+?)(?=，|。|纽扣|面料标|里布|$)', group_text)
         if not composition_match:
-            # 尝试英文格式 "COMPOSITION"（支持跨行）
-            composition_match = re.search(r'COMPOSITION[\s:\n]+([\w\-\./%\s]+?)(?=\s+JACKET LINING|\s+TROUSERS LINING|\s+JACKET BUTTON|\s+$)', group_text)
+            # 尝试英文格式 "COMPOSITION"（只取一行）
+            composition_match = re.search(r'COMPOSITION[\s:\n]+([^\n]+)', group_text)
         composition = composition_match.group(1).strip() if composition_match else ""
         
         # 提取门襟贡针
@@ -1356,7 +1385,15 @@ def parse_text_order(text):
             r'SLEEVE LENGTH LEFT[\s:\n]+([\d.]+)': 'sleeveLengthLeft',
             r'BICEPS[\s:\n]+([\d.]+)': 'sleeveWidth',
             r'SLEEVE OPENING[\s:\n]+([\d.]+)': 'wrisband',
-            r'FRONT LENGTH[\s:\n]+([\d.-]+)': 'frontLength'
+            r'FRONT LENGTH[\s:\n]+([\d.-]+)': 'frontLength',
+            # 西裤尺寸
+            r'WAIST[\s:\n]+([\d.]+)': 'fullWaistWidth',
+            r'FRONT RISE[\s:\n]+([\d.]+)': 'frontRise',
+            r'BACK RISE[\s:\n]+([\d.]+)': 'backRise',
+            r'THIGH[\s:\n]+([\d.]+)': 'thigh',
+            r'CALF[\s:\n]+([\d.]+)': 'calf',
+            r'LEG OPENING[\s:\n]+([\d.]+)': 'legOpening',
+            r'INSEAM[\s:\n]+([\d.]+)': 'inseam'
         }
         
         net_size = {}
@@ -1391,26 +1428,45 @@ def parse_text_order(text):
             # 尝试英文格式 "JACKET PATTERN xxx"（支持跨行匹配）
             jacket_pattern_match = re.search(r'JACKET PATTERN[\s:\n]+([A-Z0-9]+)', group_text, re.MULTILINE)
             trouser_pattern_match = re.search(r'TROUSERS PATTERN[\s:\n]+([A-Z0-9]+)', group_text, re.MULTILINE)
+            # 尝试通用英文格式 "PATTERN xxx"
+            general_pattern_match = re.search(r'PATTERN[\s:\n]+([A-Z0-9]+)', group_text, re.MULTILINE)
             
             # 解析尺码格式 "BASE SIZE 38R (US) / 48 (EU)"（支持跨行匹配）
-            size_match = re.search(r'BASE SIZE[\s:\n]+\d+[RCrc]?.*?/ (\d+[RCrc]?)', group_text, re.DOTALL)
+            size_match = re.search(r'BASE SIZE[\s:\n]+\d+[RCrc\-]?.*?/ (\d+[RCrc\-]?)', group_text, re.DOTALL)
             if not size_match:
-                size_match = re.search(r'BASE SIZE[\s:\n]+(\d+[RCrc]?)', group_text, re.MULTILINE)
+                size_match = re.search(r'BASE SIZE[\s:\n]+(\d+[RCrc\-]?)', group_text, re.MULTILINE)
+            # 尝试西裤尺码格式 "W42 L34"
+            if not size_match:
+                size_match = re.search(r'BASE SIZE[\s:\n]+W(\d+)\s+L(\d+)', group_text, re.MULTILINE)
             
             if size_match:
-                size_str = size_match.group(1).strip()
-                # 分离尺码数字和落差
-                size_num = re.search(r'(\d+)', size_str)
-                drop_char = re.search(r'([RCrc])', size_str)
-                final_size = size_num.group(1) if size_num else ''
-                final_drop = drop_char.group(1).upper() if drop_char else 'R'  # 默认常规
+                # 检查是否是西裤尺码格式
+                if size_match.groups() and len(size_match.groups()) == 2:
+                    final_size = size_match.group(1)  # 使用W后面的数字
+                    final_drop = 'R'
+                else:
+                    size_str = size_match.group(1).strip()
+                    # 分离尺码数字和落差（- 是第三种落差，不是R）
+                    size_num = re.search(r'(\d+)', size_str)
+                    final_size = size_num.group(1) if size_num else ''
+                    # 确定落差：R=常规，C=舒适，-=第三种落差
+                    if '-' in size_str:
+                        final_drop = '-'  # 保留 - 作为第三种落差
+                    elif re.search(r'([RCrc])', size_str):
+                        final_drop = re.search(r'([RCrc])', size_str).group(1).upper()
+                    else:
+                        final_drop = 'R'  # 默认常规
                 
+                # 优先使用特定版型编码
                 if jacket_pattern_match:
                     pattern_matches.append((jacket_pattern_match.group(1), final_size + '码'))
-                    if final_drop:
-                        drop = final_drop
                 if trouser_pattern_match:
                     pattern_matches.append((trouser_pattern_match.group(1), final_size + '码'))
+                if general_pattern_match and not pattern_matches:
+                    pattern_matches.append((general_pattern_match.group(1), final_size + '码'))
+                # 设置drop，只要有pattern_match就设置
+                if final_drop and (jacket_pattern_match or trouser_pattern_match or general_pattern_match):
+                    drop = final_drop
         
         # 提取落差（如果还没有从尺码中提取）
         drop_match = None
@@ -1615,7 +1671,10 @@ def parse_text_order(text):
             result["ksOrderNo"] = order_no       # 订单级别客商单号
             result["itemKsOrderNo"] = order_no   # 明细级别客商单号
     
-    return result
+    return {
+        "success": True,
+        "data": result
+    }
 
 def get_standard_size_from_specs(specs_code, size, drop):
     """
@@ -1928,8 +1987,18 @@ def build_order_item(params, pattern_info):
 
 def create_order(params):
     """创建新订单（支持完整的订单字段和明细字段）"""
-    # 支持多个明细的情况
-    items_list = params.get("items", [])
+    # 如果提供了自然语言文本，先解析它
+    if "text" in params and params["text"]:
+        parse_result = parse_text_order(params["text"])
+        if parse_result["success"]:
+            # 将解析结果合并到params中
+            params.update(parse_result["data"])
+            items_list = parse_result["data"].get("items", [])
+        else:
+            return parse_result
+    else:
+        # 支持多个明细的情况
+        items_list = params.get("items", [])
     
     # 自动上传图片（如果提供了本地图片路径）
     image_path = params.get("image_path", "")
@@ -2829,6 +2898,10 @@ def handler(input_data, context=None):
     
     action = input_data.get("action")
     
+    # 如果没有指定action但有text参数，默认使用create操作
+    if not action and "text" in input_data and input_data["text"]:
+        action = "create"
+    
     if not action:
         return {"success": False, "message": "请指定操作类型 (create/query/update/cancel)"}
     
@@ -2995,11 +3068,14 @@ def main():
     if args.text:
         # 解析自然语言订单描述
         try:
-            input_data = parse_text_order(args.text)
-            # 自动添加action为create
-            input_data["action"] = "create"
-            result = handler(input_data)
-            print(json.dumps(result, ensure_ascii=False, indent=2))
+            parse_result = parse_text_order(args.text)
+            if parse_result["success"]:
+                input_data = parse_result["data"]
+                input_data["action"] = "create"
+                result = handler(input_data)
+                print(json.dumps(result, ensure_ascii=False, indent=2))
+            else:
+                print(json.dumps(parse_result, ensure_ascii=False, indent=2))
             return
         except Exception as e:
             print(f"文本解析错误: {str(e)}")
