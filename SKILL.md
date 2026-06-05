@@ -1,7 +1,7 @@
 ---
 name: customer-order
 displayName: 客商下单
-version: 1.3.0
+version: 1.4.0
 description: 客商订单管理技能，支持创建订单、查询订单状态、修改订单信息、支持自然语言下单，新增多订单组合并功能
 author: OpenClaw User
 license: MIT
