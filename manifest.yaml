@@ -1,0 +1,416 @@
+name: customer-order
+version: 1.4.0
+author: OpenClaw User
+license: MIT
+runtime: python
+entry: index.py
+min_openclaw_version: "2026.1.0"
+description: 客商订单管理技能，支持创建订单、查询订单状态、修改订单信息、支持自然语言下单（中文和英文），新增多订单组合并功能
+categories:
+  - business
+  - order
+
+config:
+  - key: ACCESS_KEY_ID
+    type: string
+    required: true
+    description: API访问密钥ID
+  - key: ACCESS_KEY_SECRET
+    type: string
+    required: true
+    description: API访问密钥
+
+input:
+  type: object
+  properties:
+    action:
+      type: string
+      enum: [create, query, update, cancel]
+      description: 操作类型
+    order_id:
+      type: string
+      description: 订单ID（查询/修改/取消时必填）
+    
+    # 自然语言下单（推荐）- 支持中文和英文
+    text:
+      type: string
+      description: 自然语言订单描述（推荐），支持中文或英文格式
+      examples:
+        - "客户姓名是张三，1RZ016的48码，面料货号是A096.457/19"
+        - "ORDER #GLM32397 Customer's name: Tommaso Bortolotti BASE SIZE 48R"
+    
+    # JSON文件路径
+    json_file:
+      type: string
+      description: JSON订单文件路径
+    
+    # JSON字符串
+    json:
+      type: string
+      description: JSON订单字符串
+    
+    # 订单新增必填字段
+    ksOrderNo:
+      type: string
+      description: 客商单号（必填）
+    tradeMarkName:
+      type: string
+      description: 商标名（必填）
+    khName:
+      type: string
+      description: 客户姓名（必填）
+    khMtel:
+      type: string
+      description: 手机号码（必填）
+    khAddress:
+      type: string
+      description: 收货地址（必填）
+    khShapeCode:
+      type: string
+      description: 体型（必填）
+    khImgurls:
+      type: string
+      description: 客户照片（必填）
+    deliveryDate:
+      type: string
+      description: 成品交货日期（必填，格式：YYYY-MM-DD）
+    orderRemarks:
+      type: string
+      description: 订单备注（必填）
+    isManualOrder:
+      type: boolean
+      description: 是否手工单（必填）
+    manualOrderhImgurls:
+      type: string
+      description: 手工单图片（必填）
+    isGroupOrder:
+      type: boolean
+      description: 是否团单（默认false）
+    
+    # 订单明细必填字段
+    patternTypeCode:
+      type: string
+      description: 款式类型编码（必填）
+    patternCode:
+      type: string
+      description: 版型编码（必填）
+    fabricSupply:
+      type: string
+      description: 面料供应（必填）
+    fabricMark:
+      type: string
+      description: 面料标/面料品牌（必填）
+    lining:
+      type: string
+      description: 里布（必填）
+    fabric:
+      type: string
+      description: 面料编号（必填）
+    composition:
+      type: string
+      description: 面料成分（必填）
+    fabricOrigin:
+      type: string
+      description: 面料产地（必填）
+    placketNeedle:
+      type: string
+      description: 门襟贡针（必填）
+    button:
+      type: string
+      description: 纽扣（必填）
+    isSample:
+      type: boolean
+      description: 是否试样（必填）
+    halfDeliveryDate:
+      type: string
+      description: 半成品交货日期（必填）
+    sampleFabric:
+      type: string
+      description: 试样面料（必填）
+    ksRemark:
+      type: string
+      description: 客商备注（必填）
+    patternImgurl:
+      type: string
+      description: 版型图片（必填）
+    ksMassingCodes:
+      type: array
+      items:
+        type: string
+      description: 客商_量体部位（必填，数组）
+    specsCode:
+      type: string
+      description: 规格单编码（必填）
+    size:
+      type: string
+      description: 尺码（必填）
+    drop:
+      type: string
+      description: 落差（必填）
+    
+    # 绣花相关
+    isEmbroider:
+      type: boolean
+      description: 是否绣花（必填）
+    embroiderText:
+      type: string
+      description: 绣花文字（必填）
+    embroiderTypeface:
+      type: string
+      description: 绣花字体（必填）
+    embroiderColor:
+      type: string
+      description: 绣花颜色（必填）
+    embroiderPic:
+      type: string
+      description: 绣花图案（必填）
+    
+    # 版型属性
+    ksPatternAttr:
+      type: object
+      description: 客商_版型属性
+      properties:
+        syJag:
+          type: string
+          description: 加放量
+        syYdj:
+          type: string
+          description: 衣袋件
+        syCraft:
+          type: string
+          description: 工艺
+        syJacketVent:
+          type: string
+          description: 开叉
+        syCuffKeyhole:
+          type: string
+          description: 袖克夫钥匙孔
+        syJacketPockets:
+          type: string
+          description: 口袋
+        sySleeveElastic:
+          type: string
+          description: 袖松紧
+        syJacketTowelBag:
+          type: string
+          description: 毛巾袋
+        syPlacketKeyhole:
+          type: string
+          description: 门襟钥匙孔
+        syJacketButtonhole:
+          type: string
+          description: 扣眼
+        syJacketSleeveType:
+          type: string
+          description: 袖型
+        syJacketChestLining:
+          type: string
+          description: 胸衬
+        syJacketShoulderPads:
+          type: string
+          description: 肩垫
+        syJacketSleeveButton:
+          type: string
+          description: 袖扣
+        syHalfMileLiningStyle:
+          type: string
+          description: 半里款式
+        syJacketButtonholeColor:
+          type: string
+          description: 扣眼颜色
+        syHalfLining:
+          type: string
+          description: 半里
+        xkYks:
+          type: string
+          description: 腰头松紧
+        xkSlide:
+          type: string
+          description: 滑扣
+        xkJkjzd:
+          type: string
+          description: 裤脚加固
+        xkHemOpening:
+          type: string
+          description: 脚口
+        xkPantsPocket:
+          type: string
+          description: 裤口袋
+        xkStrapBuckle:
+          type: string
+          description: 松紧带
+        xkPantFrontFly:
+          type: string
+          description: 门襟
+        xkPantBackPocket:
+          type: string
+          description: 后袋
+        xkPantsWaistStyle:
+          type: string
+          description: 裤腰款式
+        xkTrouserFrontPockets:
+          type: string
+          description: 前插袋
+        xkFootOpeningReversed:
+          type: string
+          description: 脚口反撬值
+    
+    # 版型结构
+    ksPatternStructure:
+      type: object
+      description: 客商_版型结构
+      properties:
+        lapelType:
+          type: string
+          description: 领型
+        lapelWidth:
+          type: string
+          description: 领宽
+        buttonNumber:
+          type: string
+          description: 扣数
+        liningConstructions:
+          type: string
+          description: 里布结构
+    
+    # 客商成衣尺寸
+    ksMadeSize:
+      type: object
+      description: 客商成衣尺寸
+      properties:
+        fullBust:
+          type: integer
+          description: 胸围
+        fullWaistWidth:
+          type: integer
+          description: 腰围
+        fullHipWidth:
+          type: integer
+          description: 臀围
+        lowerHem:
+          type: integer
+          description: 下摆
+        shoulderWidth:
+          type: number
+          description: 肩宽
+        sleeveLength:
+          type: integer
+          description: 袖长
+        frontLength:
+          type: integer
+          description: 前长
+        shortRegularTall:
+          type: integer
+          description: 长短
+        wrisband:
+          type: number
+          description: 腕围
+        sleeveWidth:
+          type: number
+          description: 袖宽
+        backWidth:
+          type: integer
+          description: 背宽
+    
+    # 套码尺寸
+    standardSize:
+      type: object
+      description: 套码尺寸
+      properties:
+        fullBust:
+          type: integer
+          description: 胸围
+        fullWaistWidth:
+          type: integer
+          description: 腰围
+        fullHipWidth:
+          type: integer
+          description: 臀围
+        lowerHem:
+          type: integer
+          description: 下摆
+        shoulderWidth:
+          type: number
+          description: 肩宽
+        sleeveLength:
+          type: integer
+          description: 袖长
+        frontLength:
+          type: integer
+          description: 前长
+        shortRegularTall:
+          type: integer
+          description: 长短
+        wrisband:
+          type: number
+          description: 腕围
+        sleeveWidth:
+          type: number
+          description: 袖宽
+        backWidth:
+          type: integer
+          description: 背宽
+    
+    # 客商下单尺码
+    ksOrderSize:
+      type: null
+      description: 客商下单尺码
+    
+    # 净尺寸
+    netSize:
+      type: object
+      description: 净尺寸
+      properties:
+        fullBust:
+          type: string
+          description: 胸围
+    
+    # 客商特体尺码
+    ksSpecialSize:
+      type: object
+      description: 客商特体尺码
+      properties:
+        syFlatShoulder:
+          type: integer
+          description: 平肩
+    
+    # 特体备注
+    ksSpecialBodyRemark:
+      type: string
+      description: 客商特体备注
+    
+    # 兼容旧参数
+    customer_name:
+      type: string
+      description: 客户名称（兼容旧参数）
+    phone:
+      type: string
+      description: 客户手机号（兼容旧参数）
+    product:
+      type: string
+      description: 商品名称
+    quantity:
+      type: integer
+      description: 商品数量（默认1）
+    amount:
+      type: number
+      description: 订单金额（默认0）
+    status:
+      type: string
+      description: 订单状态
+  
+  required:
+    - action
+
+output:
+  type: object
+  properties:
+    success:
+      type: boolean
+      description: 操作是否成功
+    message:
+      type: string
+      description: 操作结果消息
+    data:
+      type: object
+      description: 返回的订单数据
