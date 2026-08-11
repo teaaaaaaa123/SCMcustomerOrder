@@ -1,0 +1,646 @@
+---
+name: customer-order
+description: 管理客商定制订单：从自然语言或 JSON 创建订单，查询、修改、取消订单，并支持多明细、版型匹配、定制选项和客户尺寸。需要在用户明确要求下单或管理客商订单时使用。
+metadata:
+  openclaw:
+    emoji: "🧵"
+    homepage: "https://github.com/teaaaaaaa123/SCMcustomerOrder"
+    requires:
+      env: ["ACCESS_KEY_ID", "ACCESS_KEY_SECRET"]
+---
+
+本技能的脚本位于 `{baseDir}`。调用前确认 `ACCESS_KEY_ID` 与 `ACCESS_KEY_SECRET` 已通过 OpenClaw 的环境注入配置提供；不要把密钥写入提示词、日志、示例文件或命令行参数。
+
+使用 `exec` 运行（Linux/macOS 使用 `python3`；Windows 使用 `py -3`）：
+
+```bash
+python3 {baseDir}/index.py --text "客户姓名是张三，1RZ016 的 48 码，面料货号是 A096.457/19"
+python3 {baseDir}/index.py --json-file /absolute/path/customer_order.json
+python3 {baseDir}/index.py --json '{"action":"query","order_id":"123456"}'
+```
+
+首次安装依赖：`python3 -m pip install -r {baseDir}/requirements.txt`（Windows 可使用 `py -3 -m pip install -r {baseDir}/requirements.txt`）。
+
+从 GitHub 安装到 OpenClaw 工作区：
+
+```bash
+openclaw skills install git:teaaaaaaa123/SCMcustomerOrder@main
+```
+
+在 `~/.openclaw/openclaw.json` 中为本技能注入凭据（示例值必须替换为真实密钥，且不要提交该配置文件）：
+
+```json5
+{
+  skills: {
+    entries: {
+      "customer-order": {
+        enabled: true,
+        env: {
+          ACCESS_KEY_ID: "YOUR_ACCESS_KEY_ID",
+          ACCESS_KEY_SECRET: "YOUR_ACCESS_KEY_SECRET"
+        }
+      }
+    }
+  }
+}
+```
+
+脚本输出 JSON。创建、查询、修改或取消订单后，将完整 JSON 结果原样解析并向用户说明 `success`、`message` 和 `data`。不要自行猜测缺失的必填字段；若接口返回失败，先展示失败原因，不要重复提交。
+
+# 客商订单管理技能 - 完整使用指南
+
+## 功能特性
+
+- ✅ 创建新的客商订单（支持完整字段和多明细）
+- ✅ 查询订单状态
+- ✅ 修改订单信息
+- ✅ 取消订单
+- ✅ 支持 JSON 文件输入
+- ✅ **支持自然语言下单（最推荐）**
+- ✅ **支持多订单组合并（将多个订单组合并为一个订单）**
+- ✅ 自动获取版型默认选项
+- ✅ 自动填充规格单尺寸
+- ✅ 支持上衣、西裤、大衣、衬衫等多种版型类型
+- ✅ 完整支持所有量体尺寸和定制选项
+- ✅ **完整定制选项映射表（776+选项）**
+- ✅ **支持定制选项简写（B款 → B款 两明袋）**
+- ✅ **支持英文版订单解析（PASSPORT测量数据）**
+
+## 快速开始
+
+### 方法 1：使用 JSON 文件（推荐）
+
+**步骤 1：填写订单信息**
+
+编辑 `customer_order.json` 文件：
+
+```json
+{
+    "khName": "客户姓名",
+    "khImgurls": "客户照片 URL",
+    "items": [
+        {
+            "patternCode": "版型编码",
+            "fabric": "面料编号",
+            "size": "尺码"
+        }
+    ]
+}
+```
+
+**步骤 2：运行订单**
+
+```bash
+python index.py --json-file customer_order.json
+```
+
+### 方法 2：使用 JSON 字符串
+
+```powershell
+$json = @'
+{
+    "khName": "张三",
+    "khImgurls": "https://example.com/photo.jpg",
+    "items": [
+        {"patternCode": "1KN002", "fabric": "22038-3/3", "size": "50"}
+    ]
+}
+'@
+python index.py --json $json
+```
+
+### 方法 3：命令行参数方式
+
+```bash
+python index.py --action create ^
+    --khName "张三" ^
+    --khImgurls "https://example.com/photo.jpg" ^
+    --patternCode "1KN002" ^
+    --fabric "22038-3/3" ^
+    --size "50"
+```
+
+### 方法 4：自然语言方式（最推荐）
+
+直接用中文描述订单内容：
+
+```bash
+python index.py --text "客户姓名是张三，1RZ016的48码，面料货号是A096.457/19，工艺改成全麻衬，上衣面大袋改成B款"
+```
+
+**版型描述匹配（新增）：**
+
+客户可以直接描述版型特征，系统会自动匹配对应的版型编码：
+
+```bash
+python index.py --text "客户姓名是张三，我要下经典款平驳头10cm全里的48码，面料货号是A096.457/19，工艺改成全麻衬"
+```
+
+> **支持的版型描述格式：**
+> - 经典款平驳头10cm全里 → 自动匹配版型编码 1KN1014
+> - 平驳头8cm半里 → 自动匹配版型编码 1KN999
+> - 戗驳头10cm全里 → 自动匹配版型编码 1KN344
+> - 青果领6cm一扣全里 → 自动匹配版型编码 1KN272
+> 
+> **匹配规则：**
+> - 必须包含驳头类型（平驳头、戗驳头、青果领、立领等）
+> - 必须包含宽度（如：10cm、8cm、6cm）
+> - 必须包含里布类型（全里、半里、无里）
+> - 可选：纽扣数量（一扣、二扣、三扣、双排等）
+
+> **注意**：如果版型描述无法匹配到任何版型编码，系统会返回错误信息，不会擅自提交订单。
+
+团单示例：
+
+```bash
+python index.py --text "客户姓名是26FW公司样衣，是否团单点是，团单客户单号是FW26034，1RZ016的48码，6KN358的48码，面料货号是A096.457/19，工艺改成全麻衬，上衣面大袋改成B款，袖弹改成无袖弹，右垫肩改成无垫肩，左垫肩改成无垫肩，驳头锁眼改成手工米兰眼，米兰眼颜色改成顺色，半里改成半里包边，半里里布风格改成交叉后里，西裤脚口改成反撬，脚口反撬改成3.5，腰款式改成B款，裤腰样式改成腰袢"
+```
+
+**多订单组合并示例：**
+
+```bash
+python index.py --text "客户姓名是26FW公司样衣，是否团单点是，团单客户单号是FW25048,1KN198的48码，6KN342的48码，面料货号是839114，工艺改成全麻衬，上衣面大袋改成J款，袖弹改成无袖弹，右垫肩改成无垫肩，左垫肩改成无垫肩，驳头锁眼改成手工米兰眼，米兰眼颜色改成顺色，半里改成半里包边，半里里布风格改成交叉后里，西裤脚口改成反撬，脚口反撬改成3.5，腰款式改成B款，裤腰样式改成腰袢，  FW25049,1RZ011的48码，6KK037的48码，面料货号是839109，工艺改成全麻衬，上衣面大袋改成I款，袖弹改成无袖弹，右垫肩改成无垫肩，左垫肩改成无垫肩，驳头锁眼改成手工米兰眼，米兰眼颜色改成顺色，半里改成半里包边，半里里布风格改成交叉后里，西裤脚口改成反撬，脚口反撬改成3.5，腰款式改成Z款，裤腰样式改成不开叉两侧松紧"
+```
+
+> **注意**：多订单组之间使用逗号加空格分隔（如 "，  FW25049,"），系统会自动将多个订单组合并为一个订单，但每个订单组保留各自的面料和定制选项。
+
+**英文版订单示例：**
+
+```bash
+python index.py --text "ORDER #GLM32397 Customer's name: Tommaso Bortolotti BASE SIZE 38R (US) / 48 (EU) SHOULDERS 45.5 CM CHEST 106 CM UPPER WAIST 97 CM HIP 101 CM BACK LENGTH 73 CM SLEEVE LENGTH RIGHT 60 CM SLEEVE LENGTH LEFT 60 CM BICEPS 39.5 SLEEVE OPENING 29.5 FRONT LENGTH - 1.0 cm: shorter JACKET PATTERN 1GL928 TROUSERS PATTERN 6GL949 ARTICLE NUMBER 280174 COMPOSITION 100% WOOL JACKET LINING FULL LINING TROUSERS LINING HALF KNEE JACKET BUTTON MH1"
+```
+
+> **支持的英文版字段：**
+> - ORDER #xxx → 客商单号（ksOrderNo）
+> - Customer's name → 客户姓名（khName）
+> - BASE SIZE → 尺码（如 48R）
+> - SHOULDERS/CHEST/UPPER WAIST/HIP → 成衣尺寸
+> - BACK LENGTH/SLEEVE LENGTH RIGHT/LEFT → 成衣尺寸
+> - BICEPS/SLEEVE OPENING/FRONT LENGTH → 成衣尺寸
+> - JACKET PATTERN/TROUSERS PATTERN → 版型编码
+> - ARTICLE NUMBER → 面料编号
+> - COMPOSITION → 面料成分
+> - JACKET LINING/TROUSERS LINING → 里布
+> - JACKET BUTTON/TROUSER BUTTON → 纽扣
+
+## JSON 字段详细说明
+
+### 订单基本信息
+
+| 字段 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| khName | ✅ 是 | - | 客户姓名 |
+| khImgurls | ✅ 是 | - | 客户照片 URL |
+| khMtel | ❌ 否 | "1" | 手机号码 |
+| khAddress | ❌ 否 | "1" | 收货地址 |
+| khShapeCode | ❌ 否 | "正常体" | 体型 |
+| orderRemarks | ❌ 否 | "" | 订单备注 |
+| isManualOrder | ❌ 否 | false | 是否手工单 |
+| deliveryDate | ❌ 否 | 15天后 | 交货日期 (YYYY-MM-DD) |
+
+### 订单明细（items 数组）
+
+每个明细项包含：
+
+#### 必填字段
+
+| 字段 | 说明 |
+|------|------|
+| patternTypeCode | 版型类型（SY=上衣，XK=西裤，DY=大衣，CS=衬衫） |
+| patternCode | 版型编码（如：1KN002） |
+| fabric | 面料编号 |
+| size | 尺码 |
+
+#### 定制选项（可选）
+
+**上衣（SY）定制选项：**
+| 字段 | 说明 |
+|------|------|
+| SY_jag | 加放量 |
+| SY_ydj | 衣袋件 |
+| SY_craft | 工艺（如："半麻衬"） |
+| SY_jacketVent | 开叉 |
+| SY_cuffKeyhole | 袖克夫钥匙孔 |
+| SY_jacketPockets | 面大袋（如："B 款 两明袋"） |
+| SY_sleeveElastic | 袖松紧 |
+| SY_jacketTowelBag | 手巾袋（如："C 款 小明袋"） |
+| SY_placketKeyhole | 门襟钥匙孔 |
+| SY_jacketButtonhole | 扣眼 |
+| SY_jacketSleeveType | 袖型 |
+| SY_jacketChestLining | 胸衬 |
+| SY_jacketShoulderPads | 肩垫 |
+| SY_jacketSleeveButton | 袖扣 |
+| SY_halfMileLiningStyle | 半里款式 |
+
+**西裤（XK）定制选项：**
+| 字段 | 说明 |
+|------|------|
+| XK_yks | 腰头松紧 |
+| XK_Slide | 滑扣 |
+| XK_jkjzd | 裤脚加固 |
+| XK_hemOpening | 脚口（如："反撬"、"平撬"） |
+| XK_pantsPocket | 裤口袋 |
+| XK_strapBuckle | 松紧带 |
+| XK_pantFrontFly | 门襟 |
+| XK_pantBackPocket | 裤后袋 |
+| XK_pantsWaistStyle | 裤腰款式 |
+| XK_trouserFrontPockets | 裤前袋 |
+
+**版型结构：**
+| 字段 | 说明 |
+|------|------|
+| lapelType | 领型 |
+| lapelWidth | 领宽 |
+| buttonNumber | 扣数 |
+| liningConstructions | 里布结构 |
+| ph | 裤厚 |
+| xb | 西裤 |
+| xzks | 下装款式 |
+| pleat | 褶裥 |
+
+#### 客户净尺寸（netSize）
+
+客户自定义尺寸填写在 `netSize` 对象中：
+
+**上衣尺寸：**
+| 字段 | 说明 |
+|------|------|
+| fullBust | 胸围 |
+| fullWaistWidth | 腰围 |
+| fullHipWidth | 臀围 |
+| lowerHem | 下摆 |
+| shoulderWidth | 肩宽 |
+| sleeveLength | 袖长 |
+| frontLength | 前长 |
+| shortRegularTall | 长短 |
+| wrisband | 腕围 |
+| sleeveWidth | 袖宽 |
+| backWidth | 背宽 |
+
+**西裤尺寸：**
+| 字段 | 说明 |
+|------|------|
+| fullWaistWidth | 腰围 |
+| fullHipWidth | 臀围 |
+| longPants | 裤长 |
+| thigh | 大腿围 |
+| calf | 小腿围 |
+| upperleg | 上腿围 |
+| innerPants | 内裆长 |
+| forewave | 前浪 |
+| wholewave | 后浪 |
+| risingWaves | 起浪 |
+| foodwith | 脚口宽 |
+
+## 使用示例
+
+### 示例 1：简单订单（使用默认值）
+
+```json
+{
+    "khName": "张三",
+    "khImgurls": "https://example.com/photo.jpg",
+    "items": [
+        {
+            "patternCode": "1KN002",
+            "fabric": "22038-3/3",
+            "size": "50"
+        }
+    ]
+}
+```
+
+### 示例 2：带定制选项的订单
+
+```json
+{
+    "khName": "李四",
+    "khImgurls": "https://example.com/photo.jpg",
+    "items": [
+        {
+            "patternCode": "1KN002",
+            "fabric": "22038-3/3",
+            "size": "50",
+            "ksPatternAttr": {
+                "SY_jacketTowelBag": "C 款 小明袋"
+            },
+            "ksRemark": "手巾袋 C 款，手工套结"
+        }
+    ]
+}
+```
+
+### 示例 3：带客户净尺寸的订单
+
+```json
+{
+    "khName": "王五",
+    "khImgurls": "https://example.com/photo.jpg",
+    "items": [
+        {
+            "patternCode": "1KN002",
+            "fabric": "22038-3/3",
+            "size": "50",
+            "netSize": {
+                "fullBust": 115,
+                "fullWaistWidth": 95,
+                "fullHipWidth": 105
+            }
+        }
+    ]
+}
+```
+
+### 示例 4：多明细订单（上衣 + 西裤）
+
+```json
+{
+    "khName": "赵六",
+    "khImgurls": "https://example.com/photo.jpg",
+    "items": [
+        {
+            "patternTypeCode": "SY",
+            "patternCode": "1KN002",
+            "fabric": "22038-3/3",
+            "size": "50",
+            "ksPatternAttr": {
+                "SY_jacketTowelBag": "C 款 小明袋"
+            }
+        },
+        {
+            "patternTypeCode": "XK",
+            "patternCode": "6KN358",
+            "fabric": "22038-3/3",
+            "size": "50",
+            "ksPatternAttr": {
+                "XK_hemOpening": "反撬"
+            },
+            "netSize": {
+                "fullHipWidth": 90
+            }
+        }
+    ]
+}
+```
+
+### 示例 5：完整字段订单
+
+```json
+{
+    "khName": "费好好",
+    "khImgurls": "https://example.com/photo.jpg",
+    "khMtel": "13800138000",
+    "khAddress": "北京市朝阳区某某路 100 号",
+    "khShapeCode": "正常体",
+    "orderRemarks": "加急订单，请尽快处理",
+    "isManualOrder": true,
+    "deliveryDate": "2026-05-12",
+    "items": [
+        {
+            "patternTypeCode": "SY",
+            "patternCode": "1KN003",
+            "fabric": "2ddd3",
+            "size": "50",
+            "drop": "0",
+            "ksRemark": "手巾袋改成C款 小明袋，手工套结",
+            "ksPatternAttr": {
+                "SY_jacketTowelBag": "小明袋",
+                "SY_craft": "手工套结"
+            },
+            "netSize": {
+                "fullBust": 90,
+                "fullHipWidth": 90,
+                "fullWaistWidth": 96
+            }
+        },
+        {
+            "patternTypeCode": "XK",
+            "patternCode": "6KN358",
+            "fabric": "2ddd3",
+            "size": "50",
+            "drop": "0",
+            "ksRemark": "脚口改成反撬，全臀围做到90",
+            "ksPatternAttr": {
+                "XK_hemOpening": "反撬"
+            },
+            "netSize": {
+                "fullBust": 90,
+                "fullHipWidth": 90,
+                "fullWaistWidth": 96
+            }
+        }
+    ]
+}
+```
+
+### 示例 6：自然语言团单（推荐）
+
+直接用中文描述完整的团单内容：
+
+```bash
+python index.py --text "客户姓名是26FW公司样衣，是否团单点是，团单客户单号是FW26034，1RZ016的48码，6KN358的48码，面料货号是A096.457/19，工艺改成全麻衬，上衣面大袋改成B款，袖弹改成无袖弹，右垫肩改成无垫肩，左垫肩改成无垫肩，驳头锁眼改成手工米兰眼，米兰眼颜色改成顺色，半里改成半里包边，半里里布风格改成交叉后里，西裤脚口改成反撬，脚口反撬改成3.5，腰款式改成B款，裤腰样式改成腰袢"
+```
+
+## 命令行参数完整列表
+
+### 订单基本信息
+| 参数 | 说明 |
+|------|------|
+| --khName | 客户姓名（必填） |
+| --khImgurls | 客户照片 URL（必填） |
+| --khMtel | 手机号码 |
+| --khAddress | 收货地址 |
+| --khShapeCode | 体型 |
+| --orderRemarks | 订单备注 |
+| --isManualOrder | 是否手工单 (true/false) |
+| --deliveryDate | 交货日期 (YYYY-MM-DD) |
+
+### 订单明细
+| 参数 | 说明 |
+|------|------|
+| --patternTypeCode | 版型类型编码 |
+| --patternCode | 版型编码 |
+| --fabricSupply | 面料供应 |
+| --fabricMark | 面料标/面料品牌 |
+| --lining | 里布 |
+| --fabric | 面料编号 |
+| --composition | 面料成分 |
+| --fabricOrigin | 面料产地 |
+| --placketNeedle | 门襟贡针 |
+| --button | 纽扣 |
+| --isSample | 是否试样 (true/false) |
+| --ksRemark | 客商备注 |
+| --specsCode | 规格单编码 |
+| --size | 尺码 |
+| --drop | 落差 |
+
+### 绣花信息
+| 参数 | 说明 |
+|------|------|
+| --isEmbroider | 是否绣花 (true/false) |
+| --embroiderText | 绣花文字 |
+| --embroiderTypeface | 绣花字体 |
+| --embroiderColor | 绣花颜色 |
+| --embroiderPic | 绣花图案 |
+
+### 净尺寸
+| 参数 | 说明 |
+|------|------|
+| --netFullBust | 净尺寸-胸围 |
+| --netFullHipWidth | 净尺寸-臀围 |
+| --netFullWaistWidth | 净尺寸-腰围 |
+| --netLowerHem | 净尺寸-下摆 |
+| --netShoulderWidth | 净尺寸-肩宽 |
+| --netSleeveLength | 净尺寸-袖长 |
+| --netFrontLength | 净尺寸-前长 |
+| --netBackWidth | 净尺寸-背宽 |
+| --netShortRegularTall | 净尺寸-长短 |
+| --netWrisband | 净尺寸-腕围 |
+| --netSleeveWidth | 净尺寸-袖宽 |
+
+### 版型属性 - 西装上衣（SY）
+| 参数 | 说明 |
+|------|------|
+| --syJag | 加放量 |
+| --syYdj | 衣袋件 |
+| --syCraft | 工艺 |
+| --syJacketVent | 开叉 |
+| --syCuffKeyhole | 袖克夫钥匙孔 |
+| --syJacketPockets | 口袋 |
+| --sySleeveElastic | 袖松紧 |
+| --syJacketTowelBag | 毛巾袋 |
+| --syPlacketKeyhole | 门襟钥匙孔 |
+| --syJacketButtonhole | 扣眼 |
+| --syJacketSleeveType | 袖型 |
+| --syJacketChestLining | 胸衬 |
+| --syJacketShoulderPads | 肩垫 |
+| --syJacketSleeveButton | 袖扣 |
+| --syHalfMileLiningStyle | 半里款式 |
+| --syJacketButtonholeColor | 扣眼颜色 |
+| --syHalfLining | 半里 |
+
+### 版型属性 - 西裤（XK）
+| 参数 | 说明 |
+|------|------|
+| --xkYks | 腰头松紧 |
+| --xkSlide | 滑扣 |
+| --xkJkjzd | 裤脚加固 |
+| --xkHemOpening | 脚口 |
+| --xkPantsPocket | 裤口袋 |
+| --xkStrapBuckle | 松紧带 |
+| --xkPantFrontFly | 门襟 |
+| --xkPantBackPocket | 后袋 |
+| --xkPantsWaistStyle | 裤腰款式 |
+| --xkTrouserFrontPockets | 前插袋 |
+
+### 版型结构
+| 参数 | 说明 |
+|------|------|
+| --lapelType | 领型 |
+| --lapelWidth | 领宽 |
+| --buttonNumber | 扣数 |
+| --liningConstructions | 里布结构 |
+| --ph | 裤厚 |
+| --xb | 西裤 |
+| --xzks | 下装款式 |
+| --pleat | 褶裥 |
+
+### 特体信息
+| 参数 | 说明 |
+|------|------|
+| --syFlatShoulder | 平肩 |
+| --ksSpecialBodyRemark | 特体备注 |
+
+## 注意事项
+
+1. **必填字段**：客户姓名（khName）、客户照片（khImgurls）必须填写
+2. **版型类型**：
+   - SY = 上衣
+   - XK = 西裤
+   - DY = 大衣
+   - CS = 衬衫
+3. **定制选项**：如不填写，系统会自动使用版型的默认值
+4. **客户尺寸**：如不填写，系统会自动使用规格单的标准尺寸
+5. **落差**：如不填写，系统会自动选择规格单中的第一个落差
+6. **多明细**：items 数组可以包含多个明细项（上衣、西裤等）
+7. **自动默认值**：
+   - 体型默认"正常体"
+   - 手机号默认"1"
+   - 地址默认"1"
+   - 交货日期默认下单后 15 天
+   - 面料供应默认"面料客供"
+
+## 常见问题
+
+### Q: 如何指定手巾袋为 C 款 小明袋？
+A: 在明细的 ksPatternAttr 中添加 `"SY_jacketTowelBag": "C 款 小明袋"`
+
+### Q: 如何指定西裤脚口为反撬？
+A: 在西裤明细的 ksPatternAttr 中添加 `"XK_hemOpening": "反撬"`
+
+### Q: 如何指定客户的胸围、腰围？
+A: 在明细的 netSize 中添加对应的尺寸字段，如 `"netSize": {"fullBust": 115, "fullWaistWidth": 95}`
+
+### Q: 如何同时下单上衣和西裤？
+A: 在 items 数组中添加两个明细项，一个 patternTypeCode 为 SY，一个为 XK
+
+### Q: 定制选项可以填中文名称吗？
+A: 可以！系统支持中文名称自动匹配，如填"B 款"会自动转换为对应编码
+
+### Q: 定制选项支持简写吗？
+A: 支持！系统支持多种简写方式：
+- "B款" → 自动匹配为"B款 两明袋"
+- "B款:" → 自动匹配为"B款:腰头长12CM，腰面宽5CM"
+- "顺色" → 自动匹配为对应颜色编码
+
+### Q: 量体数据如何传递？
+A: 系统会自动从规格单获取量体项目（massingCodes）和标准尺寸（massingRuleSize），客户自定义尺寸填写在 netSize 中
+
+## 运行命令
+
+```bash
+# 使用 JSON 文件下单
+python index.py --json-file customer_order.json
+
+# 使用 JSON 字符串下单
+python index.py --json '{"khName":"张三","khImgurls":"https://example.com/photo.jpg","items":[{"patternCode":"1KN002","fabric":"22038-3/3","size":"50"}]}'
+
+# 命令行参数方式下单（单明细）
+python index.py --action create ^
+    --khName "张三" ^
+    --khImgurls "https://example.com/photo.jpg" ^
+    --patternCode "1KN002" ^
+    --fabric "22038-3/3" ^
+    --size "50" ^
+    --netFullBust 90 ^
+    --netFullHipWidth 90 ^
+    --syJacketTowelBag "小明袋"
+
+# 查询订单
+python index.py --action query --order_id 123456
+
+# 修改订单（仅本地存储）
+python index.py --action update --order_id 123456 --customer_name "李四"
+
+# 取消订单（仅本地存储）
+python index.py --action cancel --order_id 123456
+```
+
+## 文件说明
+
+- **index.py** - 主程序文件
+- **SKILL.md** - 本使用指南
+- **config.example.yaml** - 配置示例文件
+- **manifest.yaml** - 技能清单文件
+
+## 技术特性
+
+- ✅ 支持 OpenClaw 技能标准（describe/handle 函数）
+- ✅ 自动获取版型默认选项
+- ✅ 自动填充规格单尺寸
+- ✅ 支持中文名称自动转换为编码
+- ✅ 自动选择第一个落差
+- ✅ 区分上衣和西裤的量体字段
+- ✅ 支持多明细订单
+- ✅ 完善的错误处理和日志输出
+- ✅ 完整支持所有量体尺寸和定制选项

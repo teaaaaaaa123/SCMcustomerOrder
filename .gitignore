@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+config.yaml
+orders.json
+skill.log
+customer_order.json
+.env
+.env.*
+!.env.example
